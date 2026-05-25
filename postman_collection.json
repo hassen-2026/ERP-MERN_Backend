@@ -1,0 +1,243 @@
+{
+  "info": {
+    "name": "ERP MVP Backend",
+    "_postman_id": "214d16ac-5196-4dbb-b8c5-8188ad9388ca",
+    "description": "Collection for auth, products and stock movements",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "token", "value": "" },
+    { "key": "productId", "value": "" },
+    { "key": "supplierId", "value": "" },
+    { "key": "invoiceId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "health"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@erp.local\",\n  \"password\": \"admin123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Me",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "me"]
+        }
+      }
+    },
+    {
+      "name": "Products - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Clavier Logitech\",\n  \"reference\": \"PRD-001\",\n  \"quantity\": 10,\n  \"minThreshold\": 5\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/products",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "products"]
+        }
+      }
+    },
+    {
+      "name": "Products - List",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/products",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "products"]
+        }
+      }
+    },
+    {
+      "name": "Products - Low Stock",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/products/low-stock",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "products", "low-stock"]
+        }
+      }
+    },
+    {
+      "name": "Stock - Create IN",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"type\": \"in\",\n  \"quantity\": 20,\n  \"note\": \"Reapprovisionnement\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/stock-movements",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "stock-movements"]
+        }
+      }
+    },
+    {
+      "name": "Stock - Create OUT",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"type\": \"out\",\n  \"quantity\": 8,\n  \"note\": \"Vente\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/stock-movements",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "stock-movements"]
+        }
+      }
+    },
+    {
+      "name": "Stock - List",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/stock-movements",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "stock-movements"]
+        }
+      }
+    },
+    {
+      "name": "Suppliers - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Tech Supplier SARL\",\n  \"email\": \"contact@techsupplier.tn\",\n  \"phone\": \"+21622111222\",\n  \"address\": \"Tunis, Tunisia\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/suppliers",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "suppliers"]
+        }
+      }
+    },
+    {
+      "name": "Suppliers - List",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/suppliers",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "suppliers"]
+        }
+      }
+    },
+    {
+      "name": "Supplier Invoices - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"supplierId\": \"{{supplierId}}\",\n  \"invoiceNumber\": \"INV-SUP-001\",\n  \"invoiceDate\": \"2026-02-20\",\n  \"dueDate\": \"2026-02-21\",\n  \"amountHT\": 1000,\n  \"tva\": 190,\n  \"amountTTC\": 1190\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/supplier-invoices",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "supplier-invoices"]
+        }
+      }
+    },
+    {
+      "name": "Supplier Invoices - List",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/supplier-invoices",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "supplier-invoices"]
+        }
+      }
+    },
+    {
+      "name": "Supplier Invoices - Refresh Overdue",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/supplier-invoices/refresh-overdue",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "supplier-invoices", "refresh-overdue"]
+        }
+      }
+    },
+    {
+      "name": "Supplier Invoices - Mark Paid",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"PAID\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/supplier-invoices/{{invoiceId}}/status",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "supplier-invoices", "{{invoiceId}}", "status"]
+        }
+      }
+    }
+  ]
+}
