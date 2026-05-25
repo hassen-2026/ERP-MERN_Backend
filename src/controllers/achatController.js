@@ -73,7 +73,7 @@ async function createAchat(req, res) {
       originalCurrencyTotals = null,
     } = req.body;
     if (!purchaseNumber || !supplierId) {
-      return res.status(400).json({ message: "purchaseNumber and supplierId are required !" });
+      return res.status(400).json({ message: "purchaseNumber and supplierId are required" });
     }
     if (!mongoose.Types.ObjectId.isValid(supplierId)) {
       return res.status(400).json({ message: "Invalid supplier id" });
