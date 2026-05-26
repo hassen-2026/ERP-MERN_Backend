@@ -157,6 +157,8 @@ Crée ces secrets dans le dépôt GitHub du backend :
 - `EC2_SSH_KEY` : la clé privée SSH utilisée pour se connecter à l'instance.
 - `REPO_URL` : l'URL du dépôt Git du backend, par exemple `git@github.com:<org>/ERP-MERN_Backend.git` ou une URL HTTPS avec token.
 
+ Le workflow GitHub Actions doit pouvoir joindre `EC2_HOST` sur le port 22 pour établir la connexion SSH lors du déploiement.
+
 ### Préparation de l'instance EC2
 
 1. Installer Docker sur l'instance.
