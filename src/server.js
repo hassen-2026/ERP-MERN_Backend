@@ -13,7 +13,7 @@ async function start() {
   console.log(`API running on port ${PORT}`);
 });
   } catch (error) {
-    console.error("Failed to start server:", error.message);
+    console.error("Failed to start server: ", error.message);
     process.exit(1);
   }
 }
