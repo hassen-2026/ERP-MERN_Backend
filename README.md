@@ -156,20 +156,22 @@ Crée ces secrets dans le dépôt GitHub du backend :
 - `EC2_USER` : l'utilisateur SSH, par exemple `ubuntu` ou `ec2-user`.
 - `EC2_SSH_KEY` : la clé privée SSH utilisée pour se connecter à l'instance, au format PEM complet (`-----BEGIN ...-----`) et sans passphrase.
 - `EC2_PORT` : le port SSH si ton instance n'utilise pas `22`.
+- `MONGODB_URI` : chaîne de connexion MongoDB utilisée par l'application.
+- `JWT_SECRET` : secret JWT utilisé pour signer les tokens.
+
+Les autres variables de `.env.example` peuvent aussi être créées comme secrets GitHub si tu utilises les fonctionnalités associées : `OCR_PROVIDER`, `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `FRONTEND_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SENDGRID_API_KEY`, `MINDEE_API_KEY_V1`, `MINDEE_API_KEY`, `ADMIN_FIRST_NAME`, `ADMIN_LAST_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
 
  Le workflow GitHub Actions doit pouvoir joindre `EC2_HOST` sur le port SSH configuré pour établir la connexion lors du déploiement.
 Si ton instance SSH écoute sur un autre port, renseigne `EC2_PORT` dans les secrets GitHub.
-Si tu colles la clé dans GitHub Secrets avec des retours ligne échappés (`\n`), le workflow les normalise avant connexion.
+Le workflow génère maintenant le fichier `.env` à partir des GitHub Secrets avant le déploiement, puis il envoie l'espace de travail déjà préparé vers l'instance EC2. Aucune authentification GitHub n'est requise depuis EC2.
 Le workflow refuse les clés publiques ou chiffrées et s'arrête avant la connexion SSH si le format est invalide.
-Le workflow envoie ensuite l'espace de travail déjà cloné par GitHub Actions vers l'instance EC2, donc aucune authentification GitHub n'est requise depuis EC2.
-Le déploiement nécessite aussi un fichier `.env` disponible sur l'instance ou inclus dans l'espace de travail envoyé depuis GitHub Actions.
+Le fichier généré fixe `PORT=5000` pour correspondre au port exposé par le conteneur Docker.
 
 ### Préparation de l'instance EC2
 
 1. Installer Docker sur l'instance.
 2. Créer le dossier `/opt/ERP-MERN_Backend` ou laisser le workflow le faire.
-3. Copier le fichier `.env` sur l'instance EC2 dans `/opt/ERP-MERN_Backend/.env`.
-4. Ouvrir les ports `22` et `5000` dans le Security Group.
+3. Ouvrir les ports `22` et `5000` dans le Security Group.
 
 ### Déploiement
 
