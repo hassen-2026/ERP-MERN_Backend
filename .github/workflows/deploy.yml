@@ -13,6 +13,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.EC2_HOST }}" ] || [ -z "${{ secrets.EC2_USER }}" ] || [ -z "${{ secrets.EC2_SSH_KEY }}" ] || [ -z "${{ secrets.REPO_URL }}" ]; then
+            echo "One or more required GitHub secrets are missing: EC2_HOST, EC2_USER, EC2_SSH_KEY, REPO_URL"
+            exit 1
+          fi
+
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
