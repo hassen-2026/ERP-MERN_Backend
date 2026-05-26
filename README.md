@@ -162,6 +162,7 @@ Si ton instance SSH écoute sur un autre port, renseigne `EC2_PORT` dans les sec
 Si tu colles la clé dans GitHub Secrets avec des retours ligne échappés (`\n`), le workflow les normalise avant connexion.
 Le workflow refuse les clés publiques ou chiffrées et s'arrête avant la connexion SSH si le format est invalide.
 Le workflow envoie ensuite l'espace de travail déjà cloné par GitHub Actions vers l'instance EC2, donc aucune authentification GitHub n'est requise depuis EC2.
+Le déploiement nécessite aussi un fichier `.env` disponible sur l'instance ou inclus dans l'espace de travail envoyé depuis GitHub Actions.
 
 ### Préparation de l'instance EC2
 

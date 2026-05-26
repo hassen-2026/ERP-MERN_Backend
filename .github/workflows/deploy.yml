@@ -65,17 +65,20 @@ jobs:
               mv "$ENV_BACKUP" "$REPO_DIR/.env"
             fi
 
+            if [ -f backend/.env ]; then
+              ENV_PATH="$REPO_DIR/backend/.env"
+            elif [ -f .env ]; then
+              ENV_PATH="$REPO_DIR/.env"
+            else
+              echo "No .env file found after deployment. Create /opt/ERP-MERN_Backend/.env on EC2 or include backend/.env in the repository workspace."
+              exit 1
+            fi
+
             # If repository is a monorepo with a backend/ folder, build from there
             if [ -d backend ]; then
               BUILD_CTX=backend
-              if [ -f backend/.env ]; then
-                ENV_PATH="$REPO_DIR/backend/.env"
-              else
-                ENV_PATH="$REPO_DIR/.env"
-              fi
             else
               BUILD_CTX=.
-              ENV_PATH="$REPO_DIR/.env"
             fi
 
             sudo docker build -t erp-backend:latest "$BUILD_CTX"
