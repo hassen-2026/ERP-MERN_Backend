@@ -25,10 +25,21 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          SSH_PORT="${{ secrets.EC2_PORT }}"
+          if [ -z "$SSH_PORT" ]; then
+            SSH_PORT=22
+          fi
+          echo "$SSH_PORT" > ~/.ssh/ec2_port
 
       - name: Deploy on EC2
         run: |
-          ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_rsa "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'EOF'
+          SSH_PORT=$(cat ~/.ssh/ec2_port)
+          if ! nc -z -w 5 "${{ secrets.EC2_HOST }}" "$SSH_PORT"; then
+            echo "Unable to reach EC2 on port $SSH_PORT. Check the instance public address, security group inbound rules, and whether SSH is listening on a custom port."
+            exit 1
+          fi
+
+          ssh -T -p "$SSH_PORT" -o ConnectTimeout=15 -o ConnectionAttempts=1 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_rsa "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'EOF'
             set -e
 
             REPO_DIR=/opt/ERP-MERN_Backend
