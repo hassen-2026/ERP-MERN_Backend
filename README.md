@@ -161,11 +161,32 @@ Crée ces secrets dans le dépôt GitHub du backend :
 
 Les autres variables de `.env.example` peuvent aussi être créées comme secrets GitHub si tu utilises les fonctionnalités associées : `OCR_PROVIDER`, `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `FRONTEND_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SENDGRID_API_KEY`, `MINDEE_API_KEY_V1`, `MINDEE_API_KEY`, `ADMIN_FIRST_NAME`, `ADMIN_LAST_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
 
- Le workflow GitHub Actions doit pouvoir joindre `EC2_HOST` sur le port SSH configuré pour établir la connexion lors du déploiement.
+Le workflow GitHub Actions doit pouvoir joindre `EC2_HOST` sur le port SSH configuré pour établir la connexion lors du déploiement.
 Si ton instance SSH écoute sur un autre port, renseigne `EC2_PORT` dans les secrets GitHub.
-Le workflow génère maintenant le fichier `.env` à partir des GitHub Secrets avant le déploiement, puis il envoie l'espace de travail déjà préparé vers l'instance EC2. Aucune authentification GitHub n'est requise depuis EC2.
-Le workflow refuse les clés publiques ou chiffrées et s'arrête avant la connexion SSH si le format est invalide.
+Le workflow génère le fichier `.env` à partir des GitHub Secrets avant l'archive et l'envoi vers EC2. Aucune authentification GitHub n'est requise depuis EC2.
 Le fichier généré fixe `PORT=5000` pour correspondre au port exposé par le conteneur Docker.
+
+### Étapes détaillées dans GitHub
+
+1. Ouvre ton dépôt backend dans GitHub.
+2. Va dans `Settings` puis `Secrets and variables` puis `Actions`.
+3. Ajoute les secrets obligatoires : `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`, `MONGODB_URI`, `JWT_SECRET`.
+4. Ajoute `EC2_PORT` seulement si ton SSH n'écoute pas sur `22`.
+5. Ajoute les secrets optionnels si tu utilises ces fonctionnalités : `OCR_PROVIDER`, `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `FRONTEND_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SENDGRID_API_KEY`, `MINDEE_API_KEY_V1`, `MINDEE_API_KEY`, `ADMIN_FIRST_NAME`, `ADMIN_LAST_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
+6. Pousse sur la branche `main` pour lancer le workflow `Deploy Backend to EC2`.
+7. Le workflow génère `.env` dans le runner, crée l’archive du projet, l’envoie sur EC2, extrait le contenu, construit l’image Docker et démarre le conteneur.
+
+### Détail du flux CI/CD
+
+1. `actions/checkout` récupère le code du dépôt.
+2. Le job crée `.env` à partir des GitHub Secrets.
+3. Le job prépare la clé SSH et vérifie la connectivité vers EC2.
+4. Le code est compressé en archive sans `.git` ni `node_modules`.
+5. L’archive est copiée sur l’instance EC2 avec `scp`.
+6. EC2 extrait l’archive dans `/opt/ERP-MERN_Backend`.
+7. Docker build l’image à partir du `Dockerfile`.
+8. Docker démarre le conteneur avec `--env-file .env`.
+9. Le workflow vérifie l’endpoint santé `/api/health`.
 
 ### Préparation de l'instance EC2
 
