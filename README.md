@@ -156,12 +156,12 @@ Crée ces secrets dans le dépôt GitHub du backend :
 - `EC2_USER` : l'utilisateur SSH, par exemple `ubuntu` ou `ec2-user`.
 - `EC2_SSH_KEY` : la clé privée SSH utilisée pour se connecter à l'instance, au format PEM complet (`-----BEGIN ...-----`) et sans passphrase.
 - `EC2_PORT` : le port SSH si ton instance n'utilise pas `22`.
-- `REPO_URL` : l'URL du dépôt Git du backend, par exemple `git@github.com:<org>/ERP-MERN_Backend.git` ou une URL HTTPS avec token.
 
  Le workflow GitHub Actions doit pouvoir joindre `EC2_HOST` sur le port SSH configuré pour établir la connexion lors du déploiement.
 Si ton instance SSH écoute sur un autre port, renseigne `EC2_PORT` dans les secrets GitHub.
 Si tu colles la clé dans GitHub Secrets avec des retours ligne échappés (`\n`), le workflow les normalise avant connexion.
 Le workflow refuse les clés publiques ou chiffrées et s'arrête avant la connexion SSH si le format est invalide.
+Le workflow envoie ensuite l'espace de travail déjà cloné par GitHub Actions vers l'instance EC2, donc aucune authentification GitHub n'est requise depuis EC2.
 
 ### Préparation de l'instance EC2
 
