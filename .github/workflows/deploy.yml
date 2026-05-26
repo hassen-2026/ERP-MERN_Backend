@@ -1,0 +1,75 @@
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy on EC2
+        run: |
+          ssh -i ~/.ssh/id_rsa "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'EOF'
+            set -e
+
+            REPO_DIR=/opt/ERP-MERN_Backend
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              sudo mkdir -p "$REPO_DIR"
+              sudo chown -R $USER:$USER "$REPO_DIR"
+              git clone "${{ secrets.REPO_URL }}" "$REPO_DIR"
+            fi
+
+            cd "$REPO_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+
+            # If repository is a monorepo with a backend/ folder, build from there
+            if [ -d backend ]; then
+              BUILD_CTX=backend
+              if [ -f backend/.env ]; then
+                ENV_PATH="$REPO_DIR/backend/.env"
+              else
+                ENV_PATH="$REPO_DIR/.env"
+              fi
+            else
+              BUILD_CTX=.
+              ENV_PATH="$REPO_DIR/.env"
+            fi
+
+            sudo docker build -t erp-backend:latest "$BUILD_CTX"
+            sudo docker stop erp-backend || true
+            sudo docker rm erp-backend || true
+            sudo docker run -d \
+              --name erp-backend \
+              --restart unless-stopped \
+              -p 5000:5000 \
+              --env-file "$ENV_PATH" \
+              erp-backend:latest
+
+            # Simple health check (tries to reach the health endpoint on the host port)
+            echo "Waiting for service to start..."
+            for i in {1..20}; do
+              if curl -sS -f http://localhost:5000/api/health >/dev/null 2>&1; then
+                echo "Health check passed"
+                exit 0
+              fi
+              sleep 3
+            done
+
+            echo "Health check failed - showing last container logs"
+            sudo docker logs --tail 100 erp-backend || true
+            exit 1
+          EOF

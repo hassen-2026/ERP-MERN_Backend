@@ -137,3 +137,34 @@ Importer `postman_collection.json`, puis:
 - `POST /api/snapshots`
 
 > Toutes les routes ci-dessus (sauf `/api/health` et `/api/auth/login`) requierent un token JWT `Bearer`.
+
+## Déploiement automatisé sur EC2
+
+Le backend est prêt pour un déploiement Docker sur une instance EC2.
+
+### Fichiers ajoutés
+
+- `Dockerfile` pour builder l'image backend.
+- `.dockerignore` pour exclure `.env`, `node_modules` et les fichiers locaux.
+- `.github/workflows/deploy.yml` pour déployer automatiquement sur EC2 à chaque push sur `main`.
+
+### Secrets GitHub à créer
+
+Crée ces secrets dans le dépôt GitHub du backend :
+
+- `EC2_HOST` : l'adresse IP publique ou le DNS de ton instance EC2.
+- `EC2_USER` : l'utilisateur SSH, par exemple `ubuntu` ou `ec2-user`.
+- `EC2_SSH_KEY` : la clé privée SSH utilisée pour se connecter à l'instance.
+- `REPO_URL` : l'URL du dépôt Git du backend, par exemple `git@github.com:<org>/ERP-MERN_Backend.git` ou une URL HTTPS avec token.
+
+### Préparation de l'instance EC2
+
+1. Installer Docker sur l'instance.
+2. Créer le dossier `/opt/ERP-MERN_Backend` ou laisser le workflow le faire.
+3. Copier le fichier `.env` sur l'instance EC2 dans `/opt/ERP-MERN_Backend/.env`.
+4. Ouvrir les ports `22` et `5000` dans le Security Group.
+
+### Déploiement
+
+À chaque push sur `main`, GitHub Actions se connecte en SSH à l'instance, met à jour le code, reconstruit l'image Docker et relance le conteneur `erp-backend`.
+
