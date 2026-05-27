@@ -20,6 +20,21 @@ jobs:
             exit 1
           fi
 
+      - name: Validate app secrets
+        run: |
+          if [ -z "${{ secrets.MONGODB_URI }}" ] || [ -z "${{ secrets.JWT_SECRET }}" ]; then
+            echo "One or more required app secrets are missing: MONGODB_URI, JWT_SECRET"
+            exit 1
+          fi
+
+          case "${{ secrets.MONGODB_URI }}" in
+            mongodb://*|mongodb+srv://*) ;;
+            *)
+              echo "MONGODB_URI must start with mongodb:// or mongodb+srv://"
+              exit 1
+              ;;
+          esac
+
       - name: Generate runtime .env
         env:
           PORT: "5000"
