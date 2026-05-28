@@ -129,7 +129,7 @@ jobs:
           scp -P "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_rsa /tmp/backend-deploy.tar.gz "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/backend-deploy.tar.gz"
 
           ssh -T -p "$SSH_PORT" -o ConnectTimeout=15 -o ConnectionAttempts=1 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_rsa "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'EOF'
-            set -e
+            set -euo pipefail
 
             REPO_DIR=/opt/ERP-MERN_Backend
             sudo rm -rf "$REPO_DIR"
@@ -176,15 +176,21 @@ jobs:
 
             # Simple health check (tries to reach the health endpoint on the host port)
             echo "Waiting for service to start..."
+            HEALTH_OK=0
             for i in {1..20}; do
               if curl -sS -f http://localhost:5000/api/health >/dev/null 2>&1; then
                 echo "Health check passed"
-                exit 0
+                HEALTH_OK=1
+                break
               fi
               sleep 3
             done
 
-            echo "Health check failed - showing last container logs"
-            sudo docker logs --tail 100 erp-backend || true
-            exit 1
+            if [ "$HEALTH_OK" -ne 1 ]; then
+              echo "Health check failed - showing last container logs"
+              sudo docker logs --tail 100 erp-backend || true
+              exit 1
+            fi
+
+            echo "Deployment completed successfully"
           EOF
