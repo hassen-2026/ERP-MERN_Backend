@@ -1,4 +1,4 @@
-name: Deploy Backend to EC2
+name: CI/CD Pipeline
 
 on:
   push:
@@ -15,8 +15,8 @@ jobs:
 
       - name: Validate required secrets
         run: |
-          if [ -z "${{ secrets.EC2_HOST }}" ] || [ -z "${{ secrets.EC2_USER }}" ] || [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
-            echo "One or more required GitHub secrets are missing: EC2_HOST, EC2_USER, EC2_SSH_KEY"
+          if [ -z "${{ secrets.EC2_HOST }}" ] || [ -z "${{ secrets.EC2_USER }}" ] || [ -z "${{ secrets.EC2_SSH_KEY }}" ] || [ -z "${{ secrets.DOCKER_USERNAME }}" ] || [ -z "${{ secrets.DOCKER_PASSWORD }}" ]; then
+            echo "One or more required GitHub secrets are missing: EC2_HOST, EC2_USER, EC2_SSH_KEY, DOCKER_USERNAME, DOCKER_PASSWORD"
             exit 1
           fi
 
@@ -34,6 +34,14 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Generate runtime .env
         env:
@@ -102,6 +110,15 @@ jobs:
           Path(".env").write_text(content, encoding="utf-8")
           PY
 
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/erp-backend:latest .
+
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Push image to Docker Hub
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/erp-backend:latest
+
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
@@ -117,6 +134,11 @@ jobs:
           fi
           echo "$SSH_PORT" > ~/.ssh/ec2_port
 
+      - name: Copy runtime env to EC2
+        run: |
+          SSH_PORT=$(cat ~/.ssh/ec2_port)
+          scp -P "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_rsa .env "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/backend.env"
+
       - name: Deploy on EC2
         run: |
           SSH_PORT=$(cat ~/.ssh/ec2_port)
@@ -125,56 +147,45 @@ jobs:
             exit 1
           fi
 
-          tar --exclude=.git --exclude=node_modules -czf /tmp/backend-deploy.tar.gz -C "$GITHUB_WORKSPACE" .
-          scp -P "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_rsa /tmp/backend-deploy.tar.gz "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/backend-deploy.tar.gz"
-
           ssh -T -p "$SSH_PORT" -o ConnectTimeout=15 -o ConnectionAttempts=1 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_rsa "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'EOF'
             set -euo pipefail
 
             REPO_DIR=/opt/ERP-MERN_Backend
-            sudo rm -rf "$REPO_DIR"
             sudo mkdir -p "$REPO_DIR"
-            sudo tar -xzf /tmp/backend-deploy.tar.gz -C "$REPO_DIR"
-            cd "$REPO_DIR"
 
-            if [ -f backend/.env ]; then
-              ENV_PATH="$REPO_DIR/backend/.env"
-            elif [ -f .env ]; then
-              ENV_PATH="$REPO_DIR/.env"
-            else
-              echo "No .env file found after deployment. Create /opt/ERP-MERN_Backend/.env on EC2 or include backend/.env in the repository workspace."
+            if [ -f /tmp/backend.env ]; then
+              sudo mv /tmp/backend.env "$REPO_DIR/.env"
+              sudo chown root:root "$REPO_DIR/.env"
+              sudo chmod 600 "$REPO_DIR/.env"
+            fi
+
+            if [ ! -f "$REPO_DIR/.env" ]; then
+              echo "Missing env file on EC2: $REPO_DIR/.env"
               exit 1
             fi
 
-            MONGODB_URI_VALUE=$(grep -m1 '^MONGODB_URI=' "$ENV_PATH" | cut -d= -f2- || true)
-            MONGO_URI_VALUE=$(grep -m1 '^MONGO_URI=' "$ENV_PATH" | cut -d= -f2- || true)
+            MONGODB_URI_VALUE=$(grep -m1 '^MONGODB_URI=' "$REPO_DIR/.env" | cut -d= -f2- || true)
+            MONGO_URI_VALUE=$(grep -m1 '^MONGO_URI=' "$REPO_DIR/.env" | cut -d= -f2- || true)
             DB_URI_VALUE="${MONGODB_URI_VALUE:-$MONGO_URI_VALUE}"
             case "$DB_URI_VALUE" in
               mongodb://*|mongodb+srv://*) ;;
               *)
-                echo "Invalid or missing MongoDB URI in $ENV_PATH (expected MONGODB_URI or MONGO_URI starting with mongodb:// or mongodb+srv://)"
+                echo "Invalid or missing MongoDB URI in $REPO_DIR/.env (expected MONGODB_URI or MONGO_URI starting with mongodb:// or mongodb+srv://)"
                 exit 1
                 ;;
             esac
 
-            # If repository is a monorepo with a backend/ folder, build from there
-            if [ -d backend ]; then
-              BUILD_CTX=backend
-            else
-              BUILD_CTX=.
-            fi
-
-            sudo docker build -t erp-backend:latest "$BUILD_CTX"
+            echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/erp-backend:latest
             sudo docker stop erp-backend || true
             sudo docker rm erp-backend || true
             sudo docker run -d \
               --name erp-backend \
               --restart unless-stopped \
               -p 5000:5000 \
-              --env-file "$ENV_PATH" \
-              erp-backend:latest
+              --env-file "$REPO_DIR/.env" \
+              ${{ secrets.DOCKER_USERNAME }}/erp-backend:latest
 
-            # Simple health check (tries to reach the health endpoint on the host port)
             echo "Waiting for service to start..."
             HEALTH_OK=0
             for i in {1..20}; do
