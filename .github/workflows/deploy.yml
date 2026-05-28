@@ -164,8 +164,8 @@ jobs:
               exit 1
             fi
 
-            MONGODB_URI_VALUE=$(grep -m1 '^MONGODB_URI=' "$REPO_DIR/.env" | cut -d= -f2- || true)
-            MONGO_URI_VALUE=$(grep -m1 '^MONGO_URI=' "$REPO_DIR/.env" | cut -d= -f2- || true)
+            MONGODB_URI_VALUE=$(sudo grep -m1 '^MONGODB_URI=' "$REPO_DIR/.env" | cut -d= -f2- || true)
+            MONGO_URI_VALUE=$(sudo grep -m1 '^MONGO_URI=' "$REPO_DIR/.env" | cut -d= -f2- || true)
             DB_URI_VALUE="${MONGODB_URI_VALUE:-$MONGO_URI_VALUE}"
             case "$DB_URI_VALUE" in
               mongodb://*|mongodb+srv://*) ;;
