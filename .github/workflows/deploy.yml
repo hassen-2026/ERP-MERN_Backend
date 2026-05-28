@@ -67,109 +67,9 @@ jobs:
           from pathlib import Path
 
           def format_value(value: str) -> str:
+              # Docker --env-file takes values literally; wrapping in quotes would become part of the value.
               value = "" if value is None else str(value)
-              if value == "":
-                  return '""'
-              if any(char in value for char in ' #"\n\r\t='):
-                  escaped = (
-                      value.replace('\\', '\\\\')
-                      .replace('"', '\\"')
-                      .replace('\r', '')
-                      .replace('\n', '\\n')
-                  )
-                  return f'"{escaped}"'
-              return value
-
-          entries = [
-              ("PORT", os.getenv("PORT", "5000")),
-              ("MONGODB_URI", os.getenv("MONGODB_URI", "")),
-              ("JWT_SECRET", os.getenv("JWT_SECRET", "")),
-              ("OCR_PROVIDER", os.getenv("OCR_PROVIDER", "textract")),
-              ("AWS_REGION", os.getenv("AWS_REGION", "")),
-              ("AWS_DEFAULT_REGION", os.getenv("AWS_DEFAULT_REGION", "")),
-              ("AWS_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID", "")),
-              ("AWS_SECRET_ACCESS_KEY", os.getenv("AWS_SECRET_ACCESS_KEY", "")),
-              ("AWS_SESSION_TOKEN", os.getenv("AWS_SESSION_TOKEN", "")),
-              ("FRONTEND_URL", os.getenv("FRONTEND_URL", "http://localhost:3000")),
-              ("CLOUDINARY_CLOUD_NAME", os.getenv("CLOUDINARY_CLOUD_NAME", "")),
-              ("CLOUDINARY_API_KEY", os.getenv("CLOUDINARY_API_KEY", "")),
-              ("CLOUDINARY_API_SECRET", os.getenv("CLOUDINARY_API_SECRET", "")),
-              ("SMTP_HOST", os.getenv("SMTP_HOST", "")),
-              ("SMTP_PORT", os.getenv("SMTP_PORT", "465")),
-              ("SMTP_USER", os.getenv("SMTP_USER", "")),
-              ("SMTP_PASS", os.getenv("SMTP_PASS", "")),
-              ("SENDGRID_API_KEY", os.getenv("SENDGRID_API_KEY", "")),
-              ("MINDEE_API_KEY_V1", os.getenv("MINDEE_API_KEY_V1", "")),
-              ("MINDEE_API_KEY", os.getenv("MINDEE_API_KEY", "")),
-              ("ADMIN_FIRST_NAME", os.getenv("ADMIN_FIRST_NAME", "ERP")),
-              ("ADMIN_LAST_NAME", os.getenv("ADMIN_LAST_NAME", "Admin")),
-              ("ADMIN_EMAIL", os.getenv("ADMIN_EMAIL", "admin@erp.local")),
-              ("ADMIN_PASSWORD", os.getenv("ADMIN_PASSWORD", "admin123")),
-          ]
-
-          content = "\n".join(f"{key}={format_value(value)}" for key, value in entries) + "\n"
-          Path(".env").write_text(content, encoding="utf-8")
-          PY
-
-      - name: Validate app secrets
-        run: |
-          if [ -z "${{ secrets.MONGODB_URI }}" ] || [ -z "${{ secrets.JWT_SECRET }}" ]; then
-            echo "One or more required app secrets are missing: MONGODB_URI, JWT_SECRET"
-            exit 1
-          fi
-
-          case "${{ secrets.MONGODB_URI }}" in
-            mongodb://*|mongodb+srv://*) ;;
-            *)
-              echo "MONGODB_URI must start with mongodb:// or mongodb+srv://"
-              exit 1
-              ;;
-          esac
-
-      - name: Generate runtime .env
-        env:
-          PORT: "5000"
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          OCR_PROVIDER: ${{ secrets.OCR_PROVIDER }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
-          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-          MINDEE_API_KEY_V1: ${{ secrets.MINDEE_API_KEY_V1 }}
-          MINDEE_API_KEY: ${{ secrets.MINDEE_API_KEY }}
-          ADMIN_FIRST_NAME: ${{ secrets.ADMIN_FIRST_NAME }}
-          ADMIN_LAST_NAME: ${{ secrets.ADMIN_LAST_NAME }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-        run: |
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-
-          def format_value(value: str) -> str:
-              value = "" if value is None else str(value)
-              if value == "":
-                  return '""'
-              if any(char in value for char in ' #"\n\r\t='):
-                  escaped = (
-                      value.replace('\\', '\\\\')
-                      .replace('"', '\\"')
-                      .replace('\r', '')
-                      .replace('\n', '\\n')
-                  )
-                  return f'"{escaped}"'
-              return value
+              return value.replace("\r", "").replace("\n", "\\n")
 
           entries = [
               ("PORT", os.getenv("PORT", "5000")),
@@ -245,6 +145,17 @@ jobs:
               echo "No .env file found after deployment. Create /opt/ERP-MERN_Backend/.env on EC2 or include backend/.env in the repository workspace."
               exit 1
             fi
+
+            MONGODB_URI_VALUE=$(grep -m1 '^MONGODB_URI=' "$ENV_PATH" | cut -d= -f2- || true)
+            MONGO_URI_VALUE=$(grep -m1 '^MONGO_URI=' "$ENV_PATH" | cut -d= -f2- || true)
+            DB_URI_VALUE="${MONGODB_URI_VALUE:-$MONGO_URI_VALUE}"
+            case "$DB_URI_VALUE" in
+              mongodb://*|mongodb+srv://*) ;;
+              *)
+                echo "Invalid or missing MongoDB URI in $ENV_PATH (expected MONGODB_URI or MONGO_URI starting with mongodb:// or mongodb+srv://)"
+                exit 1
+                ;;
+            esac
 
             # If repository is a monorepo with a backend/ folder, build from there
             if [ -d backend ]; then
