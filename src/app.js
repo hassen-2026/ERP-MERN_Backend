@@ -43,7 +43,10 @@ const { authorize } = require("./middleware/roleAuthorization");
 const { ROLES } = require("./constants/userRoles");
 const app = express();
 
-app.use(cors({ origin: '*' }));
+app.use(cors({
+  origin: "https://main.drlyzp4zqxqxp.amplifyapp.com",
+  credentials: true
+}));
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => {
