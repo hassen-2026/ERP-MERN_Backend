@@ -43,8 +43,30 @@ const { authorize } = require("./middleware/roleAuthorization");
 const { ROLES } = require("./constants/userRoles");
 const app = express();
 
+const defaultCorsOrigins = [
+  "https://main.drlyzp4zqxqxp.amplifyapp.com",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+];
+
+const configuredCorsOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedCorsOrigins = new Set([
+  ...defaultCorsOrigins,
+  ...configuredCorsOrigins,
+]);
+
 app.use(cors({
-  origin: "https://main.drlyzp4zqxqxp.amplifyapp.com",
+  origin: (origin, callback) => {
+    if (!origin || allowedCorsOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true
 }));
 app.use(express.json());
