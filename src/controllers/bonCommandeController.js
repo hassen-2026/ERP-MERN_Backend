@@ -35,7 +35,7 @@ function normalizeLines(rawLines) {
     try {
       parsedLines = JSON.parse(parsedLines);
     } catch (_error) {
-      throw httpError(400, "lines must be a valid JSON array");
+      throw httpError(400, "lines must be a valid JSON array ");
     }
   }
 
