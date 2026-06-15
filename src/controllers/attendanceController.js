@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Attendance = require("../models/Attendance");
 const Employee = require("../models/Employee");
 const logHistory = require("../utils/historyLogger");
+const sendEmail = require("../utils/mailer");
 
 function normalizeAttendancePayload(body = {}) {
   const payload = { ...body };
@@ -156,10 +157,97 @@ async function deleteAttendance(req, res) {
   }
 }
 
+async function validateAttendance(req, res) {
+  try {
+    const { employeeId } = req.params;
+    const { month, year } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(employeeId)) {
+      return res.status(400).json({ message: "Invalid employee id" });
+    }
+
+    const parsedMonth = Number(month);
+    const parsedYear = Number(year);
+
+    if (!parsedMonth || !parsedYear || parsedMonth < 1 || parsedMonth > 12) {
+      return res.status(400).json({ message: "Valid month (1-12) and year are required" });
+    }
+
+    const employee = await Employee.findById(employeeId);
+    if (!employee) return res.status(404).json({ message: "Employee not found" });
+
+    const startDate = new Date(parsedYear, parsedMonth - 1, 1);
+    const endDate = new Date(parsedYear, parsedMonth, 0, 23, 59, 59);
+
+    const result = await Attendance.updateMany(
+      {
+        employee: employeeId,
+        attendanceDate: { $gte: startDate, $lte: endDate },
+      },
+      { $set: { status: "PRESENT" } }
+    );
+
+    await logHistory({
+      action: "ATTENDANCE_VALIDATED",
+      description: `Attendances validated for employee ${employee.firstName || employee.name || employeeId} - ${parsedMonth}/${parsedYear}`,
+      user: req.user.id,
+      entityType: "Attendance",
+      entityId: employeeId,
+    });
+
+    // Envoi récapitulatif de présence par e-mail (fire-and-forget)
+    const employeeEmail = employee?.email;
+    if (employeeEmail) {
+      const firstName = employee?.firstName || employee?.name || "Employé";
+      const period = `${String(parsedMonth).padStart(2, "0")}/${parsedYear}`;
+      // Comptage des présences du mois pour le récapitulatif
+      Attendance.find({
+        employee: employeeId,
+        attendanceDate: { $gte: startDate, $lte: endDate },
+      }).then((attendances) => {
+        const counts = attendances.reduce((acc, a) => {
+          acc[a.status] = (acc[a.status] || 0) + 1;
+          return acc;
+        }, {});
+        const totalDays = attendances.length;
+        const present = counts["PRESENT"] || 0;
+        const absent = counts["ABSENT"] || 0;
+        const late = counts["LATE"] || 0;
+        sendEmail({
+          mail: employeeEmail,
+          subject: `Fiche de présence validée - ${period}`,
+          content: `Bonjour ${firstName},\n\nVotre fiche de présence du mois ${period} a été validée.\n\nRécapitulatif :\n- Jours enregistrés : ${totalDays}\n- Présent(s) : ${present}\n- Absent(s) : ${absent}\n- Retard(s) : ${late}\n\nCordialement,\nService RH`,
+          html: `
+            <p>Bonjour <strong>${firstName}</strong>,</p>
+            <p>Votre fiche de présence du mois <strong>${period}</strong> a été validée.</p>
+            <table style="border-collapse:collapse;margin-top:8px">
+              <tr><td style="padding:4px 12px 4px 0"><strong>Jours enregistrés :</strong></td><td>${totalDays}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0"><strong>Présent(s) :</strong></td><td>${present}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0"><strong>Absent(s) :</strong></td><td>${absent}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0"><strong>Retard(s) :</strong></td><td>${late}</td></tr>
+            </table>
+            <p style="margin-top:16px">Cordialement,<br/>Service RH</p>
+          `,
+        })
+          .then(() => console.log(`[ATTENDANCE][MAIL] Envoi réussi → ${employeeEmail}`))
+          .catch((err) => console.error(`[ATTENDANCE][MAIL] Échec → ${employeeEmail}:`, err.message));
+      }).catch((err) => console.error("[ATTENDANCE][MAIL] Erreur comptage:", err.message));
+    }
+
+    return res.json({
+      message: `${result.modifiedCount} présence(s) validée(s) pour ${parsedMonth}/${parsedYear}`,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+}
+
 module.exports = {
   createAttendance,
   listAttendances,
   getAttendanceById,
   updateAttendance,
   deleteAttendance,
+  validateAttendance,
 };

@@ -4,24 +4,6 @@ const StockMovement = require("../models/StockMovement");
 const logHistory = require("../utils/historyLogger");
 const { notifyLowStockIfNeeded } = require("../utils/notificationService");
 
-function normalizeOptionalProductId(productId) {
-  if (productId === undefined || productId === null) {
-    return null;
-  }
-
-  const normalized = String(productId).trim();
-  if (!normalized) {
-    return null;
-  }
-
-  const lowered = normalized.toLowerCase();
-  if (lowered === "all" || lowered === "all-products" || lowered === "tous" || lowered === "tout") {
-    return null;
-  }
-
-  return normalized;
-}
-
 async function createMovement(req, res) {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -114,12 +96,8 @@ async function createMovement(req, res) {
 
 async function listMovements(req, res) {
   try {
-    const normalizedProductId = normalizeOptionalProductId(req.query.productId);
-    if (normalizedProductId && !mongoose.Types.ObjectId.isValid(normalizedProductId)) {
-      return res.status(400).json({ message: "Invalid productId" });
-    }
-
-    const filter = normalizedProductId ? { product: normalizedProductId } : {};
+    const { productId } = req.query;
+    const filter = productId ? { product: productId } : {};
 
     const movements = await StockMovement.find(filter)
       .populate("product", "name reference")
@@ -132,23 +110,4 @@ async function listMovements(req, res) {
   }
 }
 
-async function listMovementProducts(_req, res) {
-  try {
-    const products = await Product.find({}, "name reference")
-      .sort({ name: 1 })
-      .lean();
-
-    return res.json([
-      { id: null, name: "Tous les produits", reference: null },
-      ...products.map((product) => ({
-        id: product._id,
-        name: product.name,
-        reference: product.reference,
-      })),
-    ]);
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-}
-
-module.exports = { createMovement, listMovements, listMovementProducts };
+module.exports = { createMovement, listMovements };

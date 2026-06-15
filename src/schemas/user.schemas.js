@@ -14,7 +14,21 @@ const createUserSchema = z
       .min(8, { message: "Confirm Password must be greater than 8 characters" })
       .max(32, { message: "Confirm Password must be less than 32 characters" }),
     dob: z.string().optional().nullable(),
-    role: z.enum(["USER", "ADMIN"]).optional().nullable()
+    role: z
+      .enum([
+        "SUPER_ADMIN",
+        "ADMIN",
+        "MANAGER",
+        "SALES_MANAGER",
+        "PROCUREMENT_MANAGER",
+        "HR_MANAGER",
+        "FINANCE_MANAGER",
+        "LOGISTICS_MANAGER",
+        "USER",
+      ])
+      .optional()
+      .nullable(),
+    employeeId: z.string().optional().nullable(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     path: ["confirmPassword"],

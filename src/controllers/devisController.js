@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const PDFDocument = require("pdfkit");
+const { generatePdf } = require("../services/pdf/index");
 const Devis = require("../models/Devis");
 const DevisItem = require("../models/DevisItem");
 const Commande = require("../models/Commande");
@@ -467,7 +468,7 @@ async function createDevis(req, res) {
             .populate("client", "nom name telephone phone adresse address email")
             .populate({ path: "items", populate: { path: "product", select: "name reference" } });
 
-          const pdfBuffer = await buildDevisPdfBuffer(devisForEmail);
+          const pdfBuffer = await generatePdf("devis", devisForEmail);
 
           await sendDevisSentEmail(devisForEmail, pdfBuffer);
           console.log(`[DEVIS][MAIL_BG] Email sent for devis=${devis.quoteNumber} id=${devis._id}`);
@@ -978,7 +979,7 @@ async function getDevisPdf(req, res) {
       return res.status(404).json({ message: "Devis not found" });
     }
 
-    const pdfBuffer = await buildDevisPdfBuffer(devis);
+    const pdfBuffer = await generatePdf("devis", devis);
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename=devis-${devis.quoteNumber || id}.pdf`);

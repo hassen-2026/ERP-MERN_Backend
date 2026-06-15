@@ -53,7 +53,16 @@ async function createUser(req, res) {
 async function listUsers(_req, res) {
   try {
     const users = await userModel.find();
-    return res.status(200).json({ users });
+    const Employee = require("../models/Employee");
+    const usersWithEmployee = await Promise.all(
+      users.map(async (user) => {
+        const employee = await Employee.findOne({ managedBy: user._id });
+        const userJson = user.toJSON();
+        userJson.employee = employee;
+        return userJson;
+      })
+    );
+    return res.status(200).json({ users: usersWithEmployee });
   } catch (error) {
     console.log(error.message);
     return res.status(500).json({
@@ -71,7 +80,11 @@ async function getUserById(req, res) {
         message: "user not found."
       });
     }
-    return res.status(200).json({ user });
+    const Employee = require("../models/Employee");
+    const employee = await Employee.findOne({ managedBy: user._id });
+    const userJson = user.toJSON();
+    userJson.employee = employee;
+    return res.status(200).json({ user: userJson });
   } catch (error) {
     console.log(error.message);
     return res.status(500).json({

@@ -13,6 +13,7 @@ const FactureItem = require("../models/FactureItem");
 const cloudinary = require("../config/cloudinary");
 const logHistory = require("../utils/historyLogger");
 const { notifyLowStockIfNeeded } = require("../utils/notificationService");
+const sendEmail = require("../utils/mailer");
 
 function httpError(status, message) {
   const error = new Error(message);
@@ -759,6 +760,43 @@ async function assignTransporterAndDeliver(req, res, next) {
         metaData: { commandeId: String(factureInfo.commandeId) },
       });
     }
+
+    // Envoi e-mail aux clients des commandes livrées (fire-and-forget)
+    (async () => {
+      try {
+        const commandesWithClients = await Commande.find(
+          { _id: { $in: touchedCommandeIdsArray } }
+        ).populate("client", "nom name email");
+
+        const deliveryDate = new Date(populatedLivraison.date || new Date()).toLocaleDateString("fr-FR");
+        const deliveryNumber = populatedLivraison.deliveryNumber || String(populatedLivraison._id);
+        const transporterName = transporter.name || "-";
+
+        for (const commande of commandesWithClients) {
+          const clientEmail = commande?.client?.email;
+          if (!clientEmail) continue;
+          const clientName = commande?.client?.nom || commande?.client?.name || "Client";
+          sendEmail({
+            mail: clientEmail,
+            subject: `Bon de livraison N° ${deliveryNumber}`,
+            content: `Bonjour ${clientName},\n\nVotre commande a été livrée le ${deliveryDate} par le transporteur ${transporterName}.\n\nNuméro de livraison : ${deliveryNumber}\n\nCordialement,\nService Logistique`,
+            html: `
+              <p>Bonjour <strong>${clientName}</strong>,</p>
+              <p>Nous avons le plaisir de vous confirmer que votre commande a été <strong>livrée</strong>.</p>
+              <table style="border-collapse:collapse;margin-top:8px">
+                <tr><td style="padding:4px 12px 4px 0"><strong>N° Livraison :</strong></td><td>${deliveryNumber}</td></tr>
+                <tr><td style="padding:4px 12px 4px 0"><strong>Date :</strong></td><td>${deliveryDate}</td></tr>
+                <tr><td style="padding:4px 12px 4px 0"><strong>Transporteur :</strong></td><td>${transporterName}</td></tr>
+              </table>
+              <p style="margin-top:16px">Cordialement,<br/>Service Logistique</p>
+            `,
+          }).then(() => console.log(`[LIVRAISON][MAIL] Envoi réussi → ${clientEmail}`))
+            .catch((err) => console.error(`[LIVRAISON][MAIL] Échec envoi → ${clientEmail}:`, err.message));
+        }
+      } catch (emailErr) {
+        console.error("[LIVRAISON][MAIL] Erreur lors de la récupération des clients:", emailErr.message);
+      }
+    })();
 
     return res.json(enrichLivraisonTotals(populatedLivraison));
   } catch (error) {

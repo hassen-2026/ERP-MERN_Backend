@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 const Payroll = require("../models/Payroll");
 const Employee = require("../models/Employee");
 const logHistory = require("../utils/historyLogger");
+const sendEmail = require("../utils/mailer");
+const { generatePdf } = require("../services/pdfService");
 
 function normalizePayrollPayload(body = {}) {
   const payload = { ...body };
@@ -45,6 +47,36 @@ async function createPayroll(req, res) {
     const populated = await Payroll.findById(payroll._id)
       .populate("employee", "name firstName lastName employeeCode email status department position")
       .populate("createdBy", "firstName lastName email role");
+
+    // Envoi fiche de paie par e-mail (fire-and-forget)
+    const employeeEmail = populated?.employee?.email;
+    if (employeeEmail) {
+      const firstName = populated?.employee?.firstName || populated?.employee?.name || "Employé";
+      const period = `${String(populated.periodMonth).padStart(2, "0")}/${populated.periodYear}`;
+      const netSalary = Number(populated.netSalary || 0).toLocaleString("fr-FR", { style: "currency", currency: "TND" });
+      generatePdf("payroll", populated)
+        .then((pdfBuffer) =>
+          sendEmail({
+            mail: employeeEmail,
+            subject: `Fiche de paie - ${period}`,
+            content: `Bonjour ${firstName},\n\nVeuillez trouver en pièce jointe votre fiche de paie pour la période ${period}.\nSalaire net : ${netSalary}\n\nCordialement,\nService RH`,
+            html: `
+              <p>Bonjour <strong>${firstName}</strong>,</p>
+              <p>Veuillez trouver en pièce jointe votre fiche de paie pour la période <strong>${period}</strong>.</p>
+              <table style="border-collapse:collapse;margin-top:8px">
+                <tr><td style="padding:4px 12px 4px 0"><strong>Salaire brut :</strong></td><td>${Number(populated.grossSalary || 0).toLocaleString("fr-FR", { style: "currency", currency: "TND" })}</td></tr>
+                <tr><td style="padding:4px 12px 4px 0"><strong>Bonus :</strong></td><td>${Number(populated.bonusAmount || 0).toLocaleString("fr-FR", { style: "currency", currency: "TND" })}</td></tr>
+                <tr><td style="padding:4px 12px 4px 0"><strong>Déductions :</strong></td><td>${Number(populated.deductionAmount || 0).toLocaleString("fr-FR", { style: "currency", currency: "TND" })}</td></tr>
+                <tr><td style="padding:4px 12px 4px 0"><strong>Salaire net :</strong></td><td><strong>${netSalary}</strong></td></tr>
+              </table>
+              <p style="margin-top:16px">Cordialement,<br/>Service RH</p>
+            `,
+            attachments: [{ filename: `fiche-paie-${period.replace("/", "-")}.pdf`, content: pdfBuffer, contentType: "application/pdf" }],
+          })
+        )
+        .then(() => console.log(`[PAYROLL][MAIL] Envoi réussi → ${employeeEmail}`))
+        .catch((err) => console.error(`[PAYROLL][MAIL] Échec → ${employeeEmail}:`, err.message));
+    }
 
     return res.status(201).json(populated);
   } catch (error) {

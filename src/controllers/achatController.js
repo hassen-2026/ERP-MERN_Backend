@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Achat = require("../models/Achat");
 const Product = require("../models/Product");
+const StockMovement = require("../models/StockMovement");
 const Supplier = require("../models/Supplier");
 const logHistory = require("../utils/historyLogger");
 const { computeCommercialTotals } = require("../utils/commercialTotals");
@@ -329,6 +330,19 @@ async function receiveAchat(req, res) {
 
       product.quantity += toReceive;
       await product.save({ session });
+
+      await StockMovement.create(
+        [
+          {
+            product: product._id,
+            type: "in",
+            quantity: toReceive,
+            note: `Réception de l'achat N° ${achat.purchaseNumber}`,
+            createdBy: req.user.id,
+          },
+        ],
+        { session }
+      );
 
       item.receivedQuantity = Number(item.receivedQuantity || 0) + toReceive;
       item.status = item.receivedQuantity >= quantity ? "RECEIVED" : "PARTIALLY_RECEIVED";

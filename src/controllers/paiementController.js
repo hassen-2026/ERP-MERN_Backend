@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 const Paiement = require("../models/Paiement");
 const Facture = require("../models/Facture");
 const logHistory = require("../utils/historyLogger");
+const sendEmail = require("../utils/mailer");
+const { generatePdf } = require("../services/pdfService");
 
 async function refreshFactureStatus(factureId) {
   const facture = await Facture.findById(factureId);
@@ -50,6 +52,47 @@ async function createPaiement(req, res) {
       entityId: payment._id,
       metaData: { amount, type: "INCOMING" },
     });
+
+    const populatedPayment = await Paiement.findById(payment._id)
+      .populate({
+        path: "facture",
+        populate: { path: "client", select: "name phone email adresse nom" }
+      });
+
+    const clientEmail = populatedPayment?.facture?.client?.email;
+    if (clientEmail) {
+      const clientName = populatedPayment?.facture?.client?.nom || populatedPayment?.facture?.client?.name || "Client";
+      const paymentDate = populatedPayment.date ? new Date(populatedPayment.date).toLocaleDateString("fr-FR") : new Date().toLocaleDateString("fr-FR");
+      const paidAmount = Number(populatedPayment.amount || 0).toLocaleString("fr-FR", {
+        style: "currency",
+        currency: "TND",
+      });
+      generatePdf("paiement", populatedPayment)
+        .then((pdfBuffer) => 
+          sendEmail({
+            mail: clientEmail,
+            subject: `Reçu de paiement - Facture N° ${populatedPayment.facture?.invoiceNumber || ""}`,
+            content: `Bonjour ${clientName},\n\nVeuillez trouver en pièce jointe votre reçu pour le paiement du ${paymentDate} d'un montant de ${paidAmount}.\n\nCordialement,`,
+            html: `
+              <p>Bonjour <strong>${clientName}</strong>,</p>
+              <p>Veuillez trouver en pièce jointe votre reçu pour le paiement du <strong>${paymentDate}</strong> d'un montant de <strong>${paidAmount}</strong>.</p>
+              <p style="margin-top:16px">Cordialement,</p>
+            `,
+            attachments: [
+              {
+                filename: `recu-paiement-${populatedPayment.facture?.invoiceNumber || populatedPayment._id}.pdf`,
+                content: pdfBuffer,
+                contentType: "application/pdf",
+              },
+            ],
+          })
+        )
+        .then(() => console.log(`[PAIEMENT][MAIL] Envoi réussi → ${clientEmail}`))
+        .catch((err) => console.error(`[PAIEMENT][MAIL] Échec envoi → ${clientEmail}:`, err.message));
+    } else {
+      console.warn(`[PAIEMENT][MAIL] Email client manquant pour paiement=${payment._id}`);
+    }
+
     return res.status(201).json(payment);
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -103,4 +146,35 @@ async function deletePaiement(req, res) {
   }
 }
 
-module.exports = { createPaiement, listPaiements, getPaiementById, deletePaiement };
+async function downloadPaiementPdf(req, res) {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid paiement id" });
+    }
+
+    const payment = await Paiement.findById(id)
+      .populate({
+        path: "facture",
+        populate: { path: "client", select: "name phone email adresse nom" }
+      })
+      .populate("createdBy", "firstName lastName email role");
+
+    if (!payment) {
+      return res.status(404).json({ message: "Paiement not found" });
+    }
+
+    const pdfBuffer = await generatePdf("paiement", payment);
+
+    const safeId = String(payment.facture?.invoiceNumber || payment._id).replace(/[^a-zA-Z0-9-_]/g, "_");
+    const fileName = `recu-paiement-${safeId}.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+}
+
+module.exports = { createPaiement, listPaiements, getPaiementById, deletePaiement, downloadPaiementPdf };

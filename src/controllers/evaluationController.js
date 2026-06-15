@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 const Evaluation = require("../models/Evaluation");
 const Employee = require("../models/Employee");
 const logHistory = require("../utils/historyLogger");
+const sendEmail = require("../utils/mailer");
+const { generatePdf } = require("../services/pdfService");
 
 function normalizeEvaluationPayload(body = {}) {
   const payload = { ...body };
@@ -41,6 +43,38 @@ async function createEvaluation(req, res) {
     const populated = await Evaluation.findById(evaluation._id)
       .populate("employee", "name firstName lastName employeeCode email status")
       .populate("evaluator", "firstName lastName email role");
+
+    // Envoi fiche d'évaluation par e-mail (fire-and-forget)
+    const employeeEmail = populated?.employee?.email;
+    if (employeeEmail) {
+      const firstName = populated?.employee?.firstName || populated?.employee?.name || "Employé";
+      const evalDate = populated?.evaluationDate
+        ? new Date(populated.evaluationDate).toLocaleDateString("fr-FR")
+        : new Date().toLocaleDateString("fr-FR");
+      const score = populated?.overallScore ?? 0;
+      generatePdf("evaluation", populated)
+        .then((pdfBuffer) =>
+          sendEmail({
+            mail: employeeEmail,
+            subject: `Fiche d'évaluation du ${evalDate}`,
+            content: `Bonjour ${firstName},\n\nVeuillez trouver en pièce jointe votre fiche d'évaluation du ${evalDate}.\nScore global : ${score}/100\n\nCordialement,\nService RH`,
+            html: `
+              <p>Bonjour <strong>${firstName}</strong>,</p>
+              <p>Veuillez trouver en pièce jointe votre fiche d'évaluation du <strong>${evalDate}</strong>.</p>
+              <table style="border-collapse:collapse;margin-top:8px">
+                <tr><td style="padding:4px 12px 4px 0"><strong>Score technique :</strong></td><td>${populated?.technicalScore ?? 0}/100</td></tr>
+                <tr><td style="padding:4px 12px 4px 0"><strong>Score comportement :</strong></td><td>${populated?.behaviorScore ?? 0}/100</td></tr>
+                <tr><td style="padding:4px 12px 4px 0"><strong>Score objectifs :</strong></td><td>${populated?.goalScore ?? 0}/100</td></tr>
+                <tr><td style="padding:4px 12px 4px 0"><strong>Score global :</strong></td><td><strong>${score}/100</strong></td></tr>
+              </table>
+              <p style="margin-top:16px">Cordialement,<br/>Service RH</p>
+            `,
+            attachments: [{ filename: `fiche-evaluation-${evalDate.replace(/\//g, "-")}.pdf`, content: pdfBuffer, contentType: "application/pdf" }],
+          })
+        )
+        .then(() => console.log(`[EVALUATION][MAIL] Envoi réussi → ${employeeEmail}`))
+        .catch((err) => console.error(`[EVALUATION][MAIL] Échec → ${employeeEmail}:`, err.message));
+    }
 
     return res.status(201).json(populated);
   } catch (error) {
