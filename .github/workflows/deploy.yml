@@ -179,7 +179,7 @@ jobs:
             for i in {1..20}; do
               if curl -sS -f http://localhost:5000/api/health >/dev/null 2>&1; then
                 echo "Health check passed"
-                break
+                exit 0
               fi
               sleep 3
             done
