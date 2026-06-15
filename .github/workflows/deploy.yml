@@ -176,19 +176,15 @@ jobs:
 
             # Simple health check (tries to reach the health endpoint on the host port)
             echo "Waiting for service to start..."
-            success=0
             for i in {1..20}; do
               if curl -sS -f http://localhost:5000/api/health >/dev/null 2>&1; then
                 echo "Health check passed"
-                success=1
-                break
+                exit 0
               fi
               sleep 3
             done
 
-            if [ "$success" = "0" ]; then
-              echo "Health check failed - showing last container logs"
-              sudo docker logs --tail 100 erp-backend || true
-              exit 1
-            fi
-EOF
+            echo "Health check failed - showing last container logs"
+            sudo docker logs --tail 100 erp-backend || true
+            exit 1
+          EOF
